@@ -2,6 +2,7 @@ import socket
 import datetime
 import sys
 import os
+import _thread
 
 def server_start():
 
@@ -18,20 +19,23 @@ def server_start():
         
         
         (clientsocket, address) = serversocket.accept()
-        #now do something with the clientsocket
-        #in this case, we'll pretend this is a threaded server
-        #ct = client_thread(clientsocket)
-        #ct.run()
-        connection(clientsocket)
         
-
-            
-
-            
+        _thread.start_new_thread(connection, (clientsocket,))
+       
+        
 def create_hosts():
 
     hosts = []
     directory = os.getcwd() + '/'
+
+    try:
+        file = open('hosts.txt', 'r')
+        
+
+    except:
+        file = open('hosts.txt', 'w')
+    file.close()
+
 
     with open('hosts.txt') as host_file:
         try:
@@ -45,26 +49,46 @@ def create_hosts():
     
 
 def connection(socket):
+    
+    
     try:
         cached = False
         file = ''
-       
-        request = socket.recv(1000).decode()
+        request = ''
+        window = []
+        end_of_header = ['\r', '\n', '\r', '\n']
+        
 
-
+        while(window != end_of_header):
+            
+            char = socket.recv(1).decode()
+            request += char
+            
+            if(len(window) == 4):
+                window.pop(0)
+                window.append(char)
+            else:
+                window.append(char)
+            
+            
+        
         file, reply, post = parse_request(request)
 
+        
         if(reply == 1):
             if('If-Modified-Since:' in request):
                     cached = check_date(file, request)
-                    
+        
+        
+        if post[0] and reply == 1:
+            receive_data(post, socket, file)
+
 
         response = generate_reply(reply, file, post, cached)
         
         socket.send(response)
 
-        if post[0] and request == 1:
-            receive_data(post, socket, file)
+
 
 
     finally:
@@ -104,18 +128,18 @@ def parse_request(message):
 
         if(valid_format) and (host != ''):
 
-            directory = os.getcwd() + '/' + host + '/'
+            directory = os.getcwd() + '/' + host 
             
             for filename in os.listdir(directory):
                 
                 if(filename == file_requested[1:]):
                     
                     found_file = True
-                    file_requested = directory + filename
+                    
                     break
 
             if found_file or post[0]:
-
+                file_requested = directory + file_requested
                 reply_type = 1
 
             else:
@@ -264,7 +288,7 @@ def generate_reply(type, file, post, cached):
     d = datetime.datetime.today()
     
     if(type == 1) and not cached:
-        reply += "HTTP/1.1 200 OK\n" ;
+        reply += "HTTP/1.1 200 OK\n"
         reply += "Date: " + d.strftime("%d-%B-%Y %H:%M:%S") + "\n"
         reply += "Server: Juan's Python Server (" + sys.platform + ")\n"
         
@@ -292,10 +316,11 @@ def generate_reply(type, file, post, cached):
         reply += "Date: " + d.strftime("%d-%B-%Y %H:%M:%S") + "\n"
         reply += "Server: Juan's Python Server (" + sys.platform + ")\n"
 
-    print(reply)
+    
     return reply.encode()
 
 def check_date(file, message):
+
         months =['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
         
         client_time = None
@@ -335,7 +360,7 @@ def check_date(file, message):
 
         client_time = datetime.datetime(year,month,day, hour, minute, second).timestamp()
         
-        if(file_time > client_time):
+        if(file_time < client_time):
             
             cached = True
 
