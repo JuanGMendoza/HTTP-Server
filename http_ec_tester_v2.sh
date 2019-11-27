@@ -68,7 +68,7 @@ sleep 1
 
 echo ''
 echo '** Verifying POST'
-rm -f ./meme.com/newFile.txt
+#rm -f ./meme.com/newFile.txt
 sleep 1
 
 echo 'Creating file via POST...'

@@ -46,13 +46,20 @@ def create_hosts():
 
 def connection(socket):
     try:
-
+        cached = False
         file = ''
        
         request = socket.recv(1000).decode()
-        
-        file, request, post = parse_request(request)
-        response = generate_reply(request, file, post)
+
+
+        file, reply, post = parse_request(request)
+
+        if(reply == 1):
+            if('If-Modified-Since:' in request):
+                    cached = check_date(file, request)
+                    
+
+        response = generate_reply(reply, file, post, cached)
         
         socket.send(response)
 
@@ -177,6 +184,7 @@ def check_first_line(message):
                 
                 if(tokens[0] == 'GET'):
                     correct = True
+
                 elif(tokens[0] == 'POST'):
                     correct = True
 
@@ -238,28 +246,24 @@ def check_format(message):
                 if (message[i] == ':'):
                     for k in range(i+1, len(message)):
 
-                        if(message[k] == ':'):
-
-                            valid = False
-                            break
-                        elif(message[k] == '\n'):
+                        if(message[k] == '\n'):
                             break
                     i = k + 1 
+
                 else:
-                    
                     valid = False
 
                 
     
     return valid
 
-def generate_reply(type, file, post):
+def generate_reply(type, file, post, cached):
 
     file_contents = ''
     reply = ''
     d = datetime.datetime.today()
     
-    if(type == 1):
+    if(type == 1) and not cached:
         reply += "HTTP/1.1 200 OK\n" ;
         reply += "Date: " + d.strftime("%d-%B-%Y %H:%M:%S") + "\n"
         reply += "Server: Juan's Python Server (" + sys.platform + ")\n"
@@ -271,19 +275,74 @@ def generate_reply(type, file, post):
             reply += "Content-Length: " + str(len(file_contents.encode())) + '\n\n'
             reply += file_contents
 
+    elif (type == 1) and cached:
+        reply += 'HTTP/1.1 304 Not Modified\n'
+        reply += "Date: " + d.strftime("%d-%B-%Y %H:%M:%S") + "\n"
+        reply += "Server: Juan's Python Server (" + sys.platform + ")\n"
 
-    if(type == 0):
+    elif(type == 0):
         reply += "HTTP/1.1 400 Bad Request\n" 
         reply += "Date: " + d.strftime("%d-%B-%Y %H:%M:%S") + "\n"
         reply += "Server: Juan's Python Server (" + sys.platform + ")\n"
 
 
 
-    if(type == -1):
+    elif(type == -1):
         reply += "HTTP/1.1 404 Not Found\n" 
         reply += "Date: " + d.strftime("%d-%B-%Y %H:%M:%S") + "\n"
         reply += "Server: Juan's Python Server (" + sys.platform + ")\n"
 
-    
+    print(reply)
     return reply.encode()
+
+def check_date(file, message):
+        months =['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        
+        client_time = None
+        file_time = os.stat(file).st_mtime
+        index = message.find('If-Modified-Since') + 18
+        message = message[index:].lstrip(' ')
+        year = 0
+        month = 0
+        day = 0
+        hour = 0
+        minute = 0
+        second = 0
+        garbage = True
+        cached = False
+        i = 0
+
+        while(garbage):
+            if(message[i].isalpha()):
+                i += 1
+            else:
+                i += 2
+                garbage = False
+
+        day = int(message[i:i+3])
+        
+        for j in range(0, len(months)):
+
+            if(months[j] == message[i+3:i+6]):
+                
+                month = j + 1
+        year = int(message[i+7:i+11])
+        hour =int(message[i+12:i+14])
+        minute = int(message[i+15:i+17])
+        second = int(message[i+18:i+20])
+
+    
+
+        client_time = datetime.datetime(year,month,day, hour, minute, second).timestamp()
+        
+        if(file_time > client_time):
+            
+            cached = True
+
+        
+        return cached
+                
+            
+        
+        
 server_start()

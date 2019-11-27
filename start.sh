@@ -1,1 +1,1 @@
-sudo python Server.py
+sudo python3 Server.py
